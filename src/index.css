@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局基础样式：淡粉背景 + 圆润字体 + 关闭移动端点击高亮 */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-love-bg font-rounded text-slate-600;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 密码错误时输入框左右抖动 */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-10px);
+  }
+  40% {
+    transform: translateX(10px);
+  }
+  60% {
+    transform: translateX(-6px);
+  }
+  80% {
+    transform: translateX(6px);
+  }
+}
+.animate-shake {
+  animation: shake 0.4s ease;
+}
+
+/* 缓慢呼吸的光晕（锁屏页背景爱心装饰） */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+/* 隐藏密码输入框自带的浏览器"眼睛"按钮，避免与自定义切换冲突 */
+input[type='password']::-ms-reveal {
+  display: none;
+}
+
+/* 隐藏横向滚动条（分类筛选条 / 弹层分类选择） */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* ---------- 思念动画（收到"想你了"后的玫瑰花瓣雨 + 爱心升起） ---------- */
+/* 花瓣外层：垂直下落 + 旋转，终点用 CSS 变量控制时长/延迟/旋转 */
+@keyframes petal-fall {
+  0% {
+    transform: translateY(-6vh) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(108vh) rotate(var(--spin, 300deg));
+    opacity: 0.85;
+  }
+}
+/* 花瓣内层：水平左右摇摆，形成飘落感 */
+@keyframes petal-sway {
+  0%,
+  100% {
+    transform: translateX(calc(var(--sway-x, 16px) * -1));
+  }
+  50% {
+    transform: translateX(var(--sway-x, 16px));
+  }
+}
+.petal {
+  position: absolute;
+  top: 0;
+  width: 1em;
+  height: 1em;
+  animation: petal-fall var(--fall-dur, 4s) var(--fall-delay, 0s)
+    cubic-bezier(0.33, 0, 0.66, 1) forwards;
+  will-change: transform, opacity;
+}
+.petal > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: petal-sway var(--sway-dur, 2s) ease-in-out infinite;
+}
+
+/* 爱心从屏幕底部缓缓升起、放大、淡出 */
+@keyframes heart-rise {
+  0% {
+    transform: translateY(0) scale(0.5) rotate(-8deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(calc(var(--rise, 60vh) * -1)) scale(1.2) rotate(10deg);
+    opacity: 0;
+  }
+}
+.rise-heart {
+  position: absolute;
+  bottom: -1.2em;
+  width: 1em;
+  height: 1em;
+  animation: heart-rise 3.4s var(--rise-delay, 0s) ease-out forwards;
+  will-change: transform, opacity;
+}
+.rise-heart > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 点击"想你了"后，从按钮处迸发的爱心 */
+@keyframes heart-burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -40px)))
+      scale(1.2) rotate(var(--burst-rot, 0deg));
+    opacity: 0;
+  }
+}
+.burst-heart {
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  animation: heart-burst 0.9s var(--burst-delay, 0s) ease-out forwards;
+  will-change: transform, opacity;
+}
+.burst-heart > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
