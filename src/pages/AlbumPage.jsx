@@ -11,6 +11,7 @@ import { compressImage } from '../utils/image'
 import PhotoViewer from '../components/PhotoViewer'
 import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { AlbumIcon, PlusIcon, XIcon, CommentIcon } from '../components/icons'
 
 // 照片分类（PRD 2.2：旅行 / 日常 / 节日）
@@ -22,9 +23,18 @@ const CATEGORIES = [
   { value: 'other', label: '其他', emoji: '✨' },
 ]
 
+// 身份视觉配置：谁上传的（与评论区一致）
+const AUTHORS = {
+  他: { emoji: '💙', bg: 'bg-blue-50', text: 'text-blue-500', label: '他' },
+  她: { emoji: '💗', bg: 'bg-love-bg', text: 'text-love', label: '她' },
+}
+
 export default function AlbumPage() {
   const toast = useToast()
-  const [photos, setPhotos] = useState([]) // 全部照片（时间倒序）
+  // 当前登录身份（"他"=男生 / "她"=女生），用于新照片署名；双方共享查看所有照片
+  const { identity: loginIdentity } = useAuth()
+  const identity = loginIdentity || '他'
+  const [photos, setPhotos] = useState([]) // 双方共享的照片列表（时间倒序）
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // 当前分类筛选
   const [processing, setProcessing] = useState(false) // 压缩中
@@ -38,13 +48,13 @@ export default function AlbumPage() {
   const [commentCounts, setCommentCounts] = useState({}) // photo:id -> 评论数
   const fileInputRef = useRef(null)
 
-  // 进入页面加载照片列表
+  // 进入页面加载照片列表（按当前身份过滤）
   useEffect(() => {
     getPhotos().then((list) => {
       setPhotos(list)
       setLoading(false)
     })
-  }, [])
+  }, [identity])
 
   // 加载评论统计（PRD 2.4：列表角标提示评论数）
   useEffect(() => {
@@ -92,11 +102,15 @@ export default function AlbumPage() {
     const item = sheet.items[sheet.current]
     setSaving(true)
     try {
-      await uploadPhoto(item.dataUrl, {
-        title: withMeta ? title.trim() : '',
-        description: withMeta ? desc.trim() : '',
-        category: withMeta ? category : 'other',
-      })
+      await uploadPhoto(
+        item.dataUrl,
+        {
+          title: withMeta ? title.trim() : '',
+          description: withMeta ? desc.trim() : '',
+          category: withMeta ? category : 'other',
+        },
+        identity
+      )
       if (sheet.current + 1 < sheet.items.length) {
         // 还有下一张：清空表单继续
         setSheet({ ...sheet, current: sheet.current + 1 })
@@ -218,6 +232,10 @@ export default function AlbumPage() {
                 loading="lazy" // 图片懒加载（PRD 8.1）
                 className="w-full h-auto"
               />
+              {/* 上传者标识：左上角（双方共享查看） */}
+              <span className={`absolute left-2 top-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${(AUTHORS[p.uploader] || AUTHORS.他).bg} ${(AUTHORS[p.uploader] || AUTHORS.他).text}`}>
+                {(AUTHORS[p.uploader] || AUTHORS.他).emoji} {(AUTHORS[p.uploader] || AUTHORS.他).label}
+              </span>
               {/* 描述角标：有描述时左下角小气泡 */}
               {p.description && (
                 <span className="absolute left-2 bottom-2 max-w-[70%] truncate px-2 py-1 rounded-full bg-black/45 text-white/90 text-[11px] backdrop-blur-sm">

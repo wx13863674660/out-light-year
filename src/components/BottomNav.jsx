@@ -1,9 +1,10 @@
 // 底部 Tab 导航（P0）：相册 / 日记 / 互动 / 我的
 // - NavLink 自动高亮当前 Tab；底部预留 iOS 安全区（safe-area-inset-bottom）
-// - 未读评论红点（P2 评论通知）：相册 / 日记 Tab 显示对方（她）新评论数
+// - 未读评论红点（P2 评论通知）：相册 / 日记 Tab 显示"对方"发来的新评论数
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { getUnreadCount, markCommentsRead, onCommentsChange } from '../services/commentService'
+import { useAuth } from '../contexts/AuthContext'
 import { AlbumIcon, DiaryIcon, InteractIcon, ProfileIcon } from './icons'
 
 const tabs = [
@@ -15,17 +16,20 @@ const tabs = [
 
 export default function BottomNav() {
   const location = useLocation()
+  // 当前登录身份：红点只统计"对方"发来的新评论
+  const { identity: loginIdentity } = useAuth()
+  const identity = loginIdentity || '他'
   const [unread, setUnread] = useState({ diary: 0, photo: 0 })
 
-  /** 拉取最新未读数 */
-  const refresh = () => getUnreadCount().then(setUnread)
+  /** 拉取最新未读数（按当前身份反向统计） */
+  const refresh = () => getUnreadCount(identity).then(setUnread)
 
   // 挂载时 + 评论数据变化（新增/已读）时刷新
   useEffect(() => {
     refresh()
     const off = onCommentsChange(refresh)
     return off
-  }, [])
+  }, [identity])
 
   // 路由切换时刷新（进入新页面可能已标记已读）
   useEffect(() => {

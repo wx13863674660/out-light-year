@@ -10,6 +10,7 @@ import DiaryEditor from '../components/DiaryEditor'
 import DiaryDetail from '../components/DiaryDetail'
 import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { DiaryIcon, PlusIcon, CommentIcon } from '../components/icons'
 
 /** 从时间戳提取日期徽章文本：{ month, day, year } */
@@ -22,22 +23,31 @@ function dateBadge(ts) {
   }
 }
 
+// 身份视觉配置：谁记录的（与评论区一致）
+const AUTHORS = {
+  他: { emoji: '💙', bg: 'bg-blue-50', text: 'text-blue-500', label: '他' },
+  她: { emoji: '💗', bg: 'bg-love-bg', text: 'text-love', label: '她' },
+}
+
 export default function DiaryPage() {
   const toast = useToast()
-  const [diaries, setDiaries] = useState([]) // 全部日记（时间倒序）
+  // 当前登录身份（"他"=男生 / "她"=女生），用于新日记的署名；双方共享查看所有日记
+  const { identity: loginIdentity } = useAuth()
+  const identity = loginIdentity || '他'
+  const [diaries, setDiaries] = useState([]) // 双方共享的日记列表（时间倒序）
   const [loading, setLoading] = useState(true)
   const [editor, setEditor] = useState(null) // null 关闭；{ initial } 打开（写=null / 编辑=日记对象）
   const [detailId, setDetailId] = useState(null) // 详情中日记的 id，null 关闭
   const [saving, setSaving] = useState(false)
   const [commentCounts, setCommentCounts] = useState({}) // diary:id -> 评论数
 
-  // 进入页面加载日记列表
+  // 进入页面加载日记列表（按当前身份过滤）
   useEffect(() => {
     getDiaries().then((list) => {
       setDiaries(list)
       setLoading(false)
     })
-  }, [])
+  }, [identity])
 
   // 加载评论统计（PRD 2.4：卡片角标提示评论数）
   useEffect(() => {
@@ -60,7 +70,8 @@ export default function DiaryPage() {
         await updateDiary(editor.initial.id, draft)
         toast('日记已更新')
       } else {
-        await createDiary(draft)
+        // 新建：记录当前登录身份
+        await createDiary(draft, identity)
         toast('日记已保存，时光书又厚了一页')
       }
       setDiaries(await getDiaries())
@@ -127,6 +138,7 @@ export default function DiaryPage() {
           <AnimatePresence initial={false}>
             {diaries.map((d, i) => {
               const b = dateBadge(d.createdAt)
+              const cfg = AUTHORS[d.author] || AUTHORS.他
               return (
                 <motion.button
                   key={d.id}
@@ -147,9 +159,15 @@ export default function DiaryPage() {
 
                   {/* 卡片正文 */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-[15px] font-semibold text-love-deep truncate">
-                      {d.title || '未命名的一天'}
-                    </h3>
+                    {/* 记录者标识：双方共享查看 */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`shrink-0 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
+                        {cfg.emoji} {cfg.label}
+                      </span>
+                      <h3 className="flex-1 min-w-0 text-[15px] font-semibold text-love-deep truncate">
+                        {d.title || '未命名的一天'}
+                      </h3>
+                    </div>
                     {/* 正文摘要：最多 3 行 */}
                     <p className="mt-1 text-sm text-slate-500 leading-relaxed line-clamp-3">
                       {d.content}
@@ -215,6 +233,7 @@ export default function DiaryPage() {
         {detailDiary && (
           <DiaryDetail
             diary={detailDiary}
+            commentCount={commentCounts[`diary:${detailDiary.id}`] || 0}
             onClose={() => setDetailId(null)}
             onEdit={(d) => {
               setDetailId(null) // 先关闭详情，再打开编辑器

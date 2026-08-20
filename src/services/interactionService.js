@@ -36,7 +36,7 @@ const QUESTIONS = [
   { id: 'q18', text: 'TA 手机里最多的照片是什么内容？' },
   { id: 'q19', text: 'TA 最喜欢的一句歌词是什么？' },
   { id: 'q20', text: 'TA 一般几点睡觉？' },
-  { id: 'q21', text: '你们在一起的纪念日是哪一天？' },
+  { id: 'q21', text: '你们相识的纪念日是哪一天？' },
   { id: 'q22', text: 'TA 最常夸你的一句话是什么？' },
   { id: 'q23', text: 'TA 最喜欢的小零食是什么？' },
   { id: 'q24', text: 'TA 最近最想买的东西是什么？' },
@@ -116,11 +116,14 @@ export async function getMissings() {
   return readMissings().sort((a, b) => b.createdAt - a.createdAt)
 }
 
-/** 全部心意标记为已读（对方打开互动页并看到横幅后调用） */
-export async function markMissingsRead() {
+/**
+ * 将"发给当前身份"的心意标记为已读（对方打开互动页并看到横幅后调用）
+ * @param {string} identity 当前登录身份 "他" 或 "她"（只标记对方发来的）
+ */
+export async function markMissingsRead(identity) {
   const list = readMissings()
   list.forEach((m) => {
-    m.read = true
+    if (identity && m.author !== identity) m.read = true
   })
   writeMissings(list)
 }
@@ -141,7 +144,9 @@ function writeList(list) {
   localStorage.setItem(LIST_KEY, JSON.stringify(list))
 }
 
-/** 获取恋爱清单（未完成在前，按创建时间倒序） */
+/**
+ * 获取恋爱清单（双方共享可见：一方建立、双方都能看到；未完成在前，按创建时间倒序）
+ */
 export async function getBucketList() {
   return readList().sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1
@@ -149,18 +154,22 @@ export async function getBucketList() {
   })
 }
 
-/** 添加一项"想一起做的事" */
-export async function addBucketItem(text) {
+/** 添加一项"想一起做的事"（记录创建者身份，供双方查看时标注） */
+export async function addBucketItem(text, author) {
   if (!text || !text.trim()) {
     throw new Error('写下一件想一起做的事吧～')
   }
   const list = readList()
-  list.push({ id: genId(), text: text.trim(), done: false, createdAt: Date.now() })
+  list.push({ id: genId(), text: text.trim(), done: false, author: author || '他', createdAt: Date.now() })
   writeList(list)
   return getBucketList()
 }
 
-/** 勾选 / 取消勾选一项（完成后打钩标记） */
+/**
+ * 勾选 / 取消勾选一项（完成后打钩标记）
+ * @param {string} id 清单项 id
+ * @param {string} identity 当前身份（返回过滤后的列表）
+ */
 export async function toggleBucketItem(id) {
   const list = readList()
   const item = list.find((i) => i.id === id)
@@ -172,7 +181,10 @@ export async function toggleBucketItem(id) {
   return getBucketList()
 }
 
-/** 删除一项清单 */
+/**
+ * 删除一项清单（一方删除后双方都不再看到）
+ * @param {string} id 清单项 id
+ */
 export async function removeBucketItem(id) {
   writeList(readList().filter((i) => i.id !== id))
   return getBucketList()
@@ -203,12 +215,13 @@ function writeCapsules(list) {
 }
 
 /**
- * 写一封给未来彼此的信
+ * 写一封给未来彼此的信（记录写信者身份）
  * @param {string} text 信的内容
  * @param {string} openAt 解锁日期 YYYY-MM-DD（必须晚于今天）
+ * @param {string} author 写信者身份 "他" 或 "她"
  * @returns {Promise<Array>} 更新后的胶囊列表
  */
-export async function createCapsule(text, openAt) {
+export async function createCapsule(text, openAt, author) {
   if (!text || !text.trim()) {
     throw new Error('先写下想对未来的TA说的话吧～')
   }
@@ -223,6 +236,7 @@ export async function createCapsule(text, openAt) {
     id: genId(),
     text: text.trim(),
     openAt,
+    author: author || '他',
     createdAt: Date.now(),
     opened: false, // 是否已被查看过（仅到期后可查看）
   })
@@ -230,7 +244,9 @@ export async function createCapsule(text, openAt) {
   return getCapsules()
 }
 
-/** 获取全部时光胶囊（按解锁日升序） */
+/**
+ * 获取时光胶囊（双方共享可见：一方封存、双方都能看到；按解锁日升序）
+ */
 export async function getCapsules() {
   return readCapsules().sort((a, b) => a.openAt.localeCompare(b.openAt))
 }
@@ -257,7 +273,11 @@ export function capsuleDaysLeft(c) {
   return Math.max(Math.round((open - today) / 86400000), 0)
 }
 
-/** 将一颗已到期的胶囊标记为"已查看" */
+/**
+ * 将一颗已到期的胶囊标记为"已查看"
+ * @param {string} id 胶囊 id
+ * @param {string} identity 当前身份（返回过滤后的列表）
+ */
 export async function readCapsule(id) {
   const list = readCapsules()
   const c = list.find((i) => i.id === id)

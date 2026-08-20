@@ -32,7 +32,7 @@ function writeAll(list) {
 }
 
 /**
- * 获取所有照片（按上传时间倒序）
+ * 获取全部照片（双方共享可见：一方上传、双方都能看到；按上传时间倒序）
  * @returns {Promise<Array>} 照片列表
  */
 export async function getPhotos() {
@@ -46,9 +46,10 @@ export async function getPhotos() {
  * @param {string} [metadata.title] 标题
  * @param {string} [metadata.description] 描述
  * @param {string} [metadata.category] 分类（travel/daily/festival/other）
+ * @param {string} [uploader] 上传者身份 "他" 或 "她"（登录时选择，默认"他"）
  * @returns {Promise<object>} 新照片对象
  */
-export async function uploadPhoto(source, metadata = {}) {
+export async function uploadPhoto(source, metadata = {}, uploader) {
   // 若传入的是文件则先压缩；已压缩的 dataURL 直接使用
   const dataUrl =
     typeof source === 'string' ? source : await compressImage(source)
@@ -62,8 +63,8 @@ export async function uploadPhoto(source, metadata = {}) {
     description: metadata.description || '',
     category: metadata.category || 'other',
     createdAt: Date.now(),
-    // 当前设备即创建者（"他"）；接入云端身份系统后可区分"他/她"（PRD 七）
-    uploader: '他',
+    // 记录上传者身份（登录时选择），双方共享可见，展示时标注上传者
+    uploader: uploader || '他',
   }
   const list = readAll()
   list.push(photo)

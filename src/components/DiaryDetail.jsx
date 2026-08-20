@@ -3,17 +3,23 @@
 // - 配图点击可全屏放大查看
 // - 评论区：下方可发表评论（P0，PRD 2.4）
 // - 创作者可编辑 / 删除（删除需二次点击确认）
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatDate } from '../utils/dates'
 import CommentSection from './CommentSection'
-import { XIcon, TrashIcon, BackIcon, EditIcon, ImageIcon } from './icons'
+import { XIcon, TrashIcon, BackIcon, EditIcon, CommentIcon, ImageIcon } from './icons'
 
-export default function DiaryDetail({ diary, onClose, onEdit, onDelete }) {
+export default function DiaryDetail({ diary, onClose, onEdit, onDelete, commentCount = 0 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [zoomIndex, setZoomIndex] = useState(null) // 配图放大索引，null 关闭
+  const commentRef = useRef(null) // 评论区锚点，顶部「评论」按钮点击后滚动定位
 
   if (!diary) return null
+
+  /** 点击顶部「评论」按钮：平滑滚动到评论区 */
+  const scrollToComment = () => {
+    commentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   /** 删除：第一次点击进入确认态，第二次执行 */
   const handleDelete = () => {
@@ -32,7 +38,7 @@ export default function DiaryDetail({ diary, onClose, onEdit, onDelete }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 bg-love-bg"
+      className="fixed inset-0 z-50 bg-love-bg overflow-y-auto no-scrollbar"
       role="dialog"
       aria-label="日记详情"
     >
@@ -47,6 +53,15 @@ export default function DiaryDetail({ diary, onClose, onEdit, onDelete }) {
         </button>
         <span className="text-sm font-semibold text-love-deep">日记</span>
         <div className="flex items-center gap-2">
+          {/* 评论入口（PRD 2.4 日记评论）：点击滚动到下方评论区 */}
+          <button
+            onClick={scrollToComment}
+            className="h-11 px-4 rounded-full bg-white shadow-card text-sm text-love-deep flex items-center gap-1.5 active:scale-95 transition-transform"
+            aria-label="查看评论"
+          >
+            <CommentIcon className="w-4 h-4" />
+            {commentCount > 0 ? `评论 ${commentCount}` : '评论'}
+          </button>
           {/* 编辑（PRD 权限：仅创作者） */}
           <button
             onClick={() => onEdit(diary)}
@@ -108,8 +123,8 @@ export default function DiaryDetail({ diary, onClose, onEdit, onDelete }) {
             </div>
           )}
 
-          {/* 落款 */}
-          <p className="mt-6 text-right text-sm text-love-deep/80 italic">— 他 记录</p>
+          {/* 落款（记录者身份） */}
+          <p className="mt-6 text-right text-sm text-love-deep/80 italic">— {diary.author || '他'} 记录</p>
         </div>
 
         {/* 空配图提示 */}
@@ -119,12 +134,12 @@ export default function DiaryDetail({ diary, onClose, onEdit, onDelete }) {
             这篇日记没有配图
           </p>
         )}
-        </div>
 
         {/* 评论区（P0）：日记下方发表评论 */}
-        <div className="mt-4 rounded-3xl bg-white shadow-card p-5">
-        <CommentSection targetId={diary.id} targetType="diary" />
+        <div ref={commentRef} className="mt-4 scroll-mt-24 rounded-3xl bg-white shadow-card p-5">
+          <CommentSection targetId={diary.id} targetType="diary" />
         </div>
+      </div>
 
       {/* 配图全屏放大 */}
       <AnimatePresence>

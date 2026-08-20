@@ -1,11 +1,11 @@
-// 日期工具：恋爱天数计算、每日问候语
+// 日期工具：相识天数计算、每日问候语
 
 /**
- * 计算"在一起的第 N 天"
- * @param {string} startDateStr 在一起的日期，格式 YYYY-MM-DD
- * @returns {number} 第 N 天（在一起的当天记为第 1 天）
+ * 计算"相识的第 N 天"
+ * @param {string} startDateStr 相识的日期，格式 YYYY-MM-DD
+ * @returns {number} 第 N 天（相识的当天记为第 1 天）
  */
-export function getLoveDays(startDateStr) {
+export function getMeetDays(startDateStr) {
   const start = new Date(`${startDateStr}T00:00:00`)
   const now = new Date()
   // 以本地"当天零点"为基准，避免跨时区导致的天数偏差
@@ -70,4 +70,18 @@ export function timeAgo(ts) {
   if (day < 2) return '昨天'
   if (day < 30) return `${day} 天前`
   return formatDate(ts)
+}
+
+/**
+ * 计算距指定日期还有多少天（纪念日倒计时）
+ * @param {string} ymd 形如 "2026-08-20" 的日期字符串
+ * @returns {number} 距那天还有几天；今天为 0，已过去为负数
+ */
+export function getDaysUntil(ymd) {
+  const target = new Date(`${ymd}T00:00:00`)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate())
+  const diffMs = targetDay.getTime() - today.getTime()
+  return Math.round(diffMs / 86400000)
 }

@@ -22,6 +22,7 @@ import {
   setRainSetting,
 } from '../services/interactionService'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import FallingPetals, { HeartBurst } from '../components/FallingPetals'
 import { timeAgo, formatYMD } from '../utils/dates'
 import {
@@ -42,9 +43,17 @@ const AUTHORS = {
   她: { emoji: '💗', bg: 'bg-love-bg', text: 'text-love', label: '她说' },
 }
 
+// 清单 / 胶囊的创建者短标识（一方建立、双方可见）
+const OWNER = {
+  他: { emoji: '💙', label: '他' },
+  她: { emoji: '💗', label: '她' },
+}
+
 export default function InteractPage() {
   const toast = useToast()
-  const [identity, setIdentity] = useState('他') // 本地模拟：当前操作者身份
+  // 当前登录身份（登录时选择并持久化，"他"=男生 / "她"=女生）
+  const { identity: loginIdentity } = useAuth()
+  const identity = loginIdentity || '他'
   const [question, setQuestion] = useState(null) // 今日默契题
   const [answers, setAnswers] = useState({ 他: '', 她: '' }) // 双方答案
   const [myAnswer, setMyAnswer] = useState('')
@@ -71,7 +80,7 @@ export default function InteractPage() {
     })
   }
 
-  // 进入页面：加载今日默契题 + 双方答案 + 未读心意 + 恋爱清单 + 时光胶囊 + 爱心雨开关
+  // 进入页面：加载今日默契题 + 双方答案 + 未读心意 + 恋爱清单 + 时光胶囊 + 爱心雨开关（清单 / 胶囊双方共享可见）
   useEffect(() => {
     let alive = true
     Promise.all([getDailyQuestion(), getBucketList(), getCapsules(), getRainSetting()])
@@ -91,9 +100,9 @@ export default function InteractPage() {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [identity])
 
-  // 切换身份后横幅按"新身份的对方"重新判断
+  // 身份确定后横幅按"对方的身份"重新判断
   useEffect(() => {
     refreshMissing()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,6 +138,7 @@ export default function InteractPage() {
   }
 
   // 双方都已作答时比对答案（忽略首尾空格）
+  const otherKey = identity === '他' ? '她' : '他'
   const bothAnswered = Boolean(answers.他 && answers.她)
   const match = bothAnswered && answers.他.trim() === answers.她.trim()
 
@@ -148,16 +158,16 @@ export default function InteractPage() {
     }
   }
 
-  /** 关闭横幅：全部心意标记已读 */
+  /** 关闭横幅：将"对方发来的"心意标记已读 */
   const dismissMissing = async () => {
-    await markMissingsRead()
+    await markMissingsRead(identity)
     setMissing(null)
   }
 
-  // ---------- 恋爱清单 ----------
+  // ---------- 恋爱清单（一方建立、双方可见） ----------
   const handleAddItem = async () => {
     try {
-      setList(await addBucketItem(newItem))
+      setList(await addBucketItem(newItem, identity))
       setNewItem('')
     } catch (err) {
       toast(err.message || '添加失败', 'error')
@@ -172,12 +182,12 @@ export default function InteractPage() {
     setList(await removeBucketItem(id))
   }
 
-  // ---------- 时光胶囊 ----------
-  /** 写一封给未来的信 */
+  // ---------- 时光胶囊（一方封存、双方可见） ----------
+  /** 写一封给未来的信（记录写信者身份） */
   const handleCreateCapsule = async () => {
     setSavingCapsule(true)
     try {
-      setCapsules(await createCapsule(capsuleText, capsuleOpenAt))
+      setCapsules(await createCapsule(capsuleText, capsuleOpenAt, identity))
       setCapsuleText('')
       setCapsuleOpenAt('')
       toast('已封存，等那一天到来～')
@@ -254,48 +264,42 @@ export default function InteractPage() {
 
       {/* 今日默契题（P1） */}
       <div className="mt-4 rounded-3xl bg-white shadow-card p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-9 h-9 rounded-xl bg-love-bg flex items-center justify-center text-love-deep">
-              <InteractIcon className="w-5 h-5" />
-            </span>
-            <h3 className="text-sm font-bold text-love-deep">今日默契题</h3>
-          </div>
-          {/* 身份切换：以"谁"的身份作答 */}
-          <div className="flex items-center gap-1.5">
-            {Object.entries(AUTHORS).map(([key, cfg]) => (
-              <button
-                key={key}
-                onClick={() => setIdentity(key)}
-                className={`h-7 px-3 rounded-full text-xs flex items-center gap-1 transition-colors ${
-                  identity === key
-                    ? `${cfg.bg} ${cfg.text} font-semibold`
-                    : 'bg-white/60 text-slate-400'
-                }`}
-                aria-label={`以${cfg.label}身份作答`}
-              >
-                <span>{cfg.emoji}</span>
-                {cfg.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="w-9 h-9 rounded-xl bg-love-bg flex items-center justify-center text-love-deep">
+            <InteractIcon className="w-5 h-5" />
+          </span>
+          <h3 className="text-sm font-bold text-love-deep">今日默契题</h3>
+          <span className={`ml-auto inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-semibold ${AUTHORS[identity].bg} ${AUTHORS[identity].text}`}>
+            {AUTHORS[identity].emoji} 我的视角
+          </span>
         </div>
 
         {/* 题目 */}
         <p className="mt-3 text-base font-semibold text-slate-700 leading-relaxed">{question?.text}</p>
 
-        {/* 双方答案展示 */}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {Object.entries(AUTHORS).map(([key, cfg]) => (
-            <div key={key} className={`rounded-xl px-3 py-2.5 ${cfg.bg}`}>
-              <p className={`text-[11px] font-semibold ${cfg.text}`}>
-                {cfg.emoji} {cfg.label}的答案
+        {/* 答案展示：自己的答案始终可见；对方的答案在双方都作答后才会出现 */}
+        <div className="mt-3 space-y-2">
+          <div className={`rounded-xl px-3 py-2.5 ${AUTHORS[identity].bg}`}>
+            <p className={`text-[11px] font-semibold ${AUTHORS[identity].text}`}>
+              {AUTHORS[identity].emoji} 我的答案
+            </p>
+            <p className="mt-1 text-sm text-slate-600 leading-relaxed break-words min-h-5">
+              {answers[identity] || <span className="text-slate-300">还没作答…</span>}
+            </p>
+          </div>
+
+          {bothAnswered ? (
+            <div className={`rounded-xl px-3 py-2.5 ${AUTHORS[otherKey].bg}`}>
+              <p className={`text-[11px] font-semibold ${AUTHORS[otherKey].text}`}>
+                {AUTHORS[otherKey].emoji} {AUTHORS[otherKey].label}的答案
               </p>
-              <p className="mt-1 text-sm text-slate-600 leading-relaxed break-words min-h-5">
-                {answers[key] || <span className="text-slate-300">还没作答…</span>}
-              </p>
+              <p className="mt-1 text-sm text-slate-600 leading-relaxed break-words min-h-5">{answers[otherKey]}</p>
             </div>
-          ))}
+          ) : (
+            <p className="text-center text-xs text-slate-300 py-1.5">
+              等 TA 也回答后，就能在这里看到 TA 的答案啦～
+            </p>
+          )}
         </div>
 
         {/* 比对结果（双方都答后显示） */}
@@ -332,31 +336,14 @@ export default function InteractPage() {
 
       {/* 思念按钮（P1） */}
       <div className="mt-4 rounded-3xl bg-white shadow-card p-5 text-center">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-9 h-9 rounded-xl bg-love-bg flex items-center justify-center text-love-deep">
-              <HeartIcon className="w-5 h-5" />
-            </span>
-            <h3 className="text-sm font-bold text-love-deep">思念按钮</h3>
-          </div>
-          {/* 身份切换：以"谁"的身份发心意 */}
-          <div className="flex items-center gap-1.5">
-            {Object.entries(AUTHORS).map(([key, cfg]) => (
-              <button
-                key={key}
-                onClick={() => setIdentity(key)}
-                className={`h-7 px-3 rounded-full text-xs flex items-center gap-1 transition-colors ${
-                  identity === key
-                    ? `${cfg.bg} ${cfg.text} font-semibold`
-                    : 'bg-white/60 text-slate-400'
-                }`}
-                aria-label={`以${cfg.label}身份发送`}
-              >
-                <span>{cfg.emoji}</span>
-                {cfg.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center justify-center gap-2">
+          <span className="w-9 h-9 rounded-xl bg-love-bg flex items-center justify-center text-love-deep">
+            <HeartIcon className="w-5 h-5" />
+          </span>
+          <h3 className="text-sm font-bold text-love-deep">思念按钮</h3>
+          <span className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-semibold ${AUTHORS[identity].bg} ${AUTHORS[identity].text}`}>
+            {AUTHORS[identity].emoji} {AUTHORS[identity].label}
+          </span>
         </div>
 
         <p className="mt-2 text-xs text-slate-400 leading-relaxed">
@@ -451,6 +438,10 @@ export default function InteractPage() {
               >
                 {item.text}
               </span>
+              {/* 创建者标识：一方建立、双方可见 */}
+              <span className={`shrink-0 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full text-[10px] font-semibold ${(AUTHORS[item.author] || AUTHORS.他).bg} ${(AUTHORS[item.author] || AUTHORS.他).text}`}>
+                {(OWNER[item.author] || OWNER.他).emoji} {(OWNER[item.author] || OWNER.他).label}
+              </span>
               <button
                 onClick={() => handleRemove(item.id)}
                 className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-300 active:text-love transition-colors"
@@ -539,7 +530,7 @@ export default function InteractPage() {
                       {locked ? '一封写给未来的信' : '已开启 · 点击拆开 💌'}
                     </span>
                     <span className="block mt-0.5 text-[11px] text-slate-400">
-                      {formatYMD(c.openAt)}开启
+                      {formatYMD(c.openAt)}开启 · {(OWNER[c.author] || OWNER.他).emoji} {(OWNER[c.author] || OWNER.他).label} 写
                     </span>
                   </span>
                   <span className="shrink-0">

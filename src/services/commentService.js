@@ -112,7 +112,8 @@ export async function createComment(data) {
 }
 
 /**
- * 暖心回复（PRD 2.4）：对一条评论追加回复，形成对话
+ * 暖心回复（PRD 2.4）：对一条评论追加回复，形成多轮对话
+ * 多次回复按时间顺序保留在 replies 数组中，不会互相覆盖
  * @param {string} commentId 被回复的评论 id
  * @param {object} data 回复数据
  * @param {string} data.content 回复内容
@@ -128,24 +129,41 @@ export async function replyComment(commentId, data) {
   if (!target) {
     throw new Error('评论不存在或已被删除')
   }
-  target.reply = data.content.trim()
-  target.replyAuthor = data.author === '她' ? '她' : '他'
-  target.replyAt = Date.now()
+  // 历史数据兼容：旧的单条回复字段（reply）迁移为回复数组首条
+  if (!Array.isArray(target.replies)) {
+    target.replies = []
+    if (target.reply) {
+      target.replies.push({
+        id: genId(),
+        author: target.replyAuthor || '他',
+        content: target.reply,
+        createdAt: target.replyAt || Date.now(),
+      })
+    }
+  }
+  // 追加新的回复：多次回复按时间顺序保留，形成对话
+  target.replies.push({
+    id: genId(),
+    author: data.author === '她' ? '她' : '他',
+    content: data.content.trim(),
+    createdAt: Date.now(),
+  })
   writeAll(list)
   notify()
   return target
 }
 
 /**
- * 各分类的未读评论数（PRD 2.4 评论通知：她评论后，打开网页能看到小红点提示）
+ * 各分类的未读评论数（PRD 2.4 评论通知：对方评论后，打开网页能看到小红点提示）
+ * @param {string} identity 当前登录身份 "他" 或 "她"
  * @returns {Promise<{diary: number, photo: number}>}
  */
-export async function getUnreadCount() {
+export async function getUnreadCount(identity) {
   const state = readState()
   const count = { diary: 0, photo: 0 }
   readAll().forEach((c) => {
-    // 只有"对方（她）"的新评论才计为未读，避免自己刚发的评论出现红点
-    if (c.author === '她' && c.createdAt > state[c.targetType]) {
+    // 只有"对方"的新评论才计为未读，避免自己刚发的评论出现红点
+    if (identity && c.author !== identity && c.createdAt > state[c.targetType]) {
       count[c.targetType] = (count[c.targetType] || 0) + 1
     }
   })

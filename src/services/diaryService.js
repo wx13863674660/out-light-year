@@ -30,7 +30,7 @@ function writeAll(list) {
 }
 
 /**
- * 获取所有日记（按创建时间倒序）
+ * 获取全部日记（双方共享可见：一方记录、双方都能看到；按创建时间倒序）
  * @returns {Promise<Array>} 日记列表
  */
 export async function getDiaries() {
@@ -53,9 +53,10 @@ export async function getDiary(id) {
  * @param {string} data.content 正文内容（必填）
  * @param {string[]} [data.images] 配图 DataURL 列表
  * @param {number} [data.createdAt] 创建日期时间戳（默认当前时间，可手动修改）
+ * @param {string} [author] 创建者身份 "他" 或 "她"（登录时选择，默认"他"）
  * @returns {Promise<object>} 新日记对象
  */
-export async function createDiary(data) {
+export async function createDiary(data, author) {
   const now = Date.now()
   const diary = {
     id: genId(),
@@ -64,8 +65,8 @@ export async function createDiary(data) {
     images: data.images || [],
     createdAt: data.createdAt || now,
     updatedAt: now,
-    // 当前设备即创建者（"他"）；接入云端身份系统后可区分"他/她"（PRD 七）
-    author: '他',
+    // 记录创建者身份（登录时选择），双方共享可见，展示时标注作者
+    author: author || '他',
   }
   const list = readAll()
   list.push(diary)

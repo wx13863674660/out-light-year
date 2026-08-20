@@ -1,11 +1,12 @@
 // 通用评论区（P0）：日记详情 / 照片预览共用
 // - 展示：按时间正序，每条带身份标识（"💙 他说" / "💗 她说"，PRD 2.4）
-// - 发表：输入框 + 发送；本地模拟下可切换"他/她"身份
+// - 发表：输入框 + 发送，以登录选择的身份（他/她）发言
 // - 回复（P2 暖心回复）：对任意评论回复，形成对话
 // - 打开评论区即标记该分类已读，清除未读红点（P2 评论通知）
 import { useEffect, useState } from 'react'
 import { getComments, createComment, replyComment, markCommentsRead } from '../services/commentService'
 import { useToast } from './Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { timeAgo } from '../utils/dates'
 import { ReplyIcon, XIcon } from './icons'
 
@@ -17,8 +18,10 @@ const AUTHORS = {
 
 export default function CommentSection({ targetId, targetType }) {
   const toast = useToast()
+  // 当前登录身份（"他"=男生 / "她"=女生），评论以该身份发表
+  const { identity: loginIdentity } = useAuth()
+  const author = loginIdentity || '她'
   const [comments, setComments] = useState([]) // 评论列表（时间正序）
-  const [author, setAuthor] = useState('她') // 以谁的身份评论（默认"她"）
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [replyTo, setReplyTo] = useState(null) // 正在回复的评论 id，null 表示普通评论
@@ -64,26 +67,14 @@ export default function CommentSection({ targetId, targetType }) {
 
   return (
     <div>
-      {/* 标题 + 身份切换 */}
+      {/* 标题 + 当前发言身份 */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-bold text-love-deep">评论 {comments.length > 0 && `(${comments.length})`}</h4>
-        <div className="flex items-center gap-1.5">
-          {Object.entries(AUTHORS).map(([key, cfg]) => (
-            <button
-              key={key}
-              onClick={() => setAuthor(key)}
-              className={`h-7 px-3 rounded-full text-xs flex items-center gap-1 transition-colors ${
-                author === key
-                  ? `${cfg.bg} ${cfg.text} font-semibold`
-                  : 'bg-white/60 text-slate-400'
-              }`}
-              aria-label={`以${cfg.label}身份评论`}
-            >
-              <span>{cfg.emoji}</span>
-              {cfg.label}
-            </button>
-          ))}
-        </div>
+        <span
+          className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-xs font-semibold ${AUTHORS[author].bg} ${AUTHORS[author].text}`}
+        >
+          {AUTHORS[author].emoji} 我以{AUTHORS[author].label}的身份
+        </span>
       </div>
 
       {/* 评论列表（PRD：按时间顺序展示） */}
@@ -114,16 +105,24 @@ export default function CommentSection({ targetId, targetType }) {
                 </div>
               </div>
 
-              {/* 暖心回复（P2）：回复人身份 + 时间 + 内容 */}
-              {c.reply && (
-                <div className="mt-1.5 ml-10 rounded-xl bg-love-bg/70 px-3 py-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-[11px] font-semibold ${AUTHORS[c.replyAuthor]?.text || 'text-love'}`}>
-                      {AUTHORS[c.replyAuthor]?.label || '她说'} 回复
-                    </span>
-                    <span className="text-[10px] text-slate-300">{timeAgo(c.replyAt)}</span>
-                  </div>
-                  <p className="mt-0.5 text-sm text-slate-600 leading-relaxed break-words">{c.reply}</p>
+              {/* 暖心回复（P2）：支持多条回复，按时间顺序排列形成对话 */}
+              {(c.replies?.length > 0 || c.reply) && (
+                <div className="mt-1.5 ml-10 space-y-1.5">
+                  {/* 兼容历史数据：无 replies 数组时取旧的单条 reply 字段 */}
+                  {(c.replies && c.replies.length > 0
+                    ? c.replies
+                    : [{ id: c.replyAt, author: c.replyAuthor, content: c.reply, createdAt: c.replyAt }]
+                  ).map((r, i) => (
+                    <div key={r.id || i} className="rounded-xl bg-love-bg/70 px-3 py-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-[11px] font-semibold ${AUTHORS[r.author]?.text || 'text-love'}`}>
+                          {AUTHORS[r.author]?.label || '她说'} 回复
+                        </span>
+                        <span className="text-[10px] text-slate-300">{timeAgo(r.createdAt)}</span>
+                      </div>
+                      <p className="mt-0.5 text-sm text-slate-600 leading-relaxed break-words">{r.content}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
