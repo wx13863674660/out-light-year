@@ -5,18 +5,21 @@
  *  - 跨域请求（Google Fonts 等）不拦截
  * 版本号在变更缓存策略时手动递增即可（如 v1 → v2）触发全量更新
  */
-const CACHE = 'our-light-years-v1'
+const BASE = self.registration.scope
+const CACHE_PREFIX = 'our-light-years:' + BASE
+const CACHE = CACHE_PREFIX + ':v2'
+const INDEX = new URL('index.html', BASE).href
 
 // 首次安装时预缓存的核心页面与入口文件
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/apple-touch-icon.png',
-]
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './favicon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+].map(path => new URL(path, BASE).href)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -33,7 +36,7 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+        Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE).map((key) => caches.delete(key)))
       )
       .then(() => self.clients.claim())
   )
@@ -45,7 +48,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   // 只处理同源请求，跨域（字体/外部图片）交给浏览器默认行为
-  if (url.origin !== self.location.origin) return
+  if (url.origin !== self.location.origin || !url.href.startsWith(BASE)) return
 
   // 页面导航（HashRouter 下始终命中 /index.html）：网络优先，失败回退缓存
   if (request.mode === 'navigate') {
@@ -54,10 +57,10 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           // 每次拿到最新页面即更新缓存副本
           const copy = response.clone()
-          caches.open(CACHE).then((cache) => cache.put('/index.html', copy))
+          caches.open(CACHE).then((cache) => cache.put(INDEX, copy))
           return response
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => caches.match(INDEX))
     )
     return
   }
